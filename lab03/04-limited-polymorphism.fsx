@@ -43,14 +43,15 @@ let rec unify (constraints:list<Type * Type>) : option<Map<_, _>> =
   | (Number, Number)::constraints -> unify constraints
   
   // TODO: Add handling for the following cases:
-  //  * (String, String) - types match, continue with the rest
-  //  * (Function(ta1,ta2), Function(tb1,tb2)) and similarly for tuples
-  //    -> Add (ta1,tb1) and (ta2,tb2) to the remaining constraints
-  //  * (TypeVariable v, t) - First solve the remaining constraints. 
-  //    -> If that worked, add mapping from 'v' to 't' to the returned assignment
-  //    -> If the assignment already contains type that's not 't', that is an error
-  //  * [] - all constraints solved, return Some Map.empty
-  //  * anything else - types are incompatible, return None
+  //  1. (String, String) - types match, continue with the rest
+  //  2. (Function(ta1,ta2), Function(tb1,tb2)) 
+  //     -> Add (ta1,tb1) and (ta2,tb2) to the remaining constraints
+  //  3. Handle tuples similarly to (2) and numbers similarly to (1)
+  //  4. (TypeVariable v, t) - First solve the remaining constraints. 
+  //     -> If that worked, add mapping from 'v' to 't' to the returned assignment
+  //     -> If the assignment already contains type that's not 't', that is an error
+  //  5. [] - all constraints solved, return Some Map.empty
+  //  6. anything else - types are incompatible, return None
   | _ -> failwith "todo: implement me!"
 
 
