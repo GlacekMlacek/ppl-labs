@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// 05 - Pretty printing & adding numbers to TinyProlog
+// 05 - Pretty printing & adding numbers to Prolog engine
 // ----------------------------------------------------------------------------
 
 type Term = 
@@ -12,19 +12,23 @@ type Clause =
     Body : Term list }
 
 type Program = Clause list
+type Substitution = Map<string, Term>
 
 let fact p = { Head = p; Body = [] }
 
 let rule p b = { Head = p; Body = b }
 
+let appendSubstitutions sub1 sub2 = 
+  Map.fold (fun sub2 key value -> Map.add key value sub2) sub1 sub2
+
 // ----------------------------------------------------------------------------
 // Substitutions and unification of terms
 // ----------------------------------------------------------------------------
 
-let rec substitute (subst:Map<string, Term>) term = 
+let rec substitute (subst:Substitution) term = 
   failwith "implemented in step 2"
 
-let substituteSubst (newSubst:Map<string, Term>) (subst:list<string * Term>) = 
+let substituteSubst (newSubst:Substitution) (subst:Substitution) = 
   failwith "implemented in step 2"
 
 let substituteTerms subst (terms:list<Term>) = 
@@ -40,15 +44,19 @@ and unify t1 t2 =
 // Pretty printing terms
 // ----------------------------------------------------------------------------
 
-let rec (|Number|_|) term = 
+let rec asNumber (term:Term) : option<int> = 
   match term with 
   | _ -> 
-    // TODO: Write an active pattern to recognize numbers in the form used below.
+    // TODO: Write a function to recognize numbers in the form used below.
     // If the term is 'Atom("zero")' return Some(0). 
     // If the term is 'Predicate("succ", [n])' where 'n' is itself
     // a term representing number, return the number value +1. 
     failwith "not implemented"
 
+
+// This is an active pattern! We can now check for numbers
+// inside pattern matching (see 'formatTerm') against Number n!
+let (|Number|_|) term = asNumber term
 
 let rec formatTerm term = 
   match term with 
@@ -78,11 +86,8 @@ let withFreshVariables (clause:Clause) : Clause =
 let query (program:list<Clause>) (query:Term) =
   failwith "implemented in step 3"
 
-let rec solve program subst goals =
-  // TODO: When printing the computed substitution 'subst', print
-  // the terms nicely using 'formatTerm'. You can use 'for' loop like:
-  // 'for var, term in subst do printfn ...'
-  failwith "not implemented" 
+let rec solve (program:list<Clause>) (subst:Substitution) (goals:list<Term>) : unit = 
+  failwith "implemented in step 4" 
 
 // ----------------------------------------------------------------------------
 // Querying the British royal family 
@@ -103,8 +108,8 @@ let family = [
 ]
 
 // Queries from previous step (now with readable output)
-solve family [] [ Predicate("father", [Variable("X"); Atom("William")]) ]
-solve family [] [ Predicate("father", [Variable("X"); Variable("Y")]) ]
+solve family Map.empty [ Predicate("father", [Variable("X"); Atom("William")]) ]
+solve family Map.empty [ Predicate("father", [Variable("X"); Variable("Y")]) ]
 
 
 // ----------------------------------------------------------------------------
@@ -135,14 +140,14 @@ let nums = [
 // Query: add(2, 3, X)
 // Output should include: 'X = 5' 
 //   (and other variables resulting from recursive calls)
-solve nums [] [ Predicate("add", [num 2; num 3; Variable("X")]) ]
+solve nums Map.empty [ Predicate("add", [num 2; num 3; Variable("X")]) ]
 
 // Query: add(2, X, 5)
 // Output should include: 'X = 3' 
 //   (we can use 'add' to calculate subtraction too!)
-solve nums [] [ Predicate("add", [num 2; Variable("X"); num 5]) ]
+solve nums Map.empty [ Predicate("add", [num 2; Variable("X"); num 5]) ]
 
 // Query: add(2, Y, X)
 // Output should include: 'Y = Z??' and 'X = succ(succ(Z??))' 
 //   (with some number for ?? - indicating that this can be any term)
-solve nums [] [ Predicate("add", [num 2; Variable("Y"); Variable("X")]) ]
+solve nums Map.empty [ Predicate("add", [num 2; Variable("Y"); Variable("X")]) ]

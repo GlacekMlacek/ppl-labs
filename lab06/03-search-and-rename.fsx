@@ -12,19 +12,23 @@ type Clause =
     Body : Term list }
 
 type Program = Clause list
+type Substitution = Map<string, Term>
 
 let fact p = { Head = p; Body = [] }
 
 let rule p b = { Head = p; Body = b }
 
+let appendSubstitutions sub1 sub2 = 
+  Map.fold (fun sub2 key value -> Map.add key value sub2) sub1 sub2
+
 // ----------------------------------------------------------------------------
 // Substitutions and unification of terms
 // ----------------------------------------------------------------------------
 
-let rec substitute (subst:Map<string, Term>) term = 
+let rec substitute (subst:Substitution) term = 
   failwith "implemented in step 2"
 
-let substituteSubst (newSubst:Map<string, Term>) (subst:list<string * Term>) = 
+let substituteSubst (newSubst:Substitution) (subst:Substitution) = 
   failwith "implemented in step 2"
 
 let substituteTerms subst (terms:list<Term>) = 
@@ -66,8 +70,7 @@ let withFreshVariables (clause:Clause) : Clause =
   failwith "not implemented"
 
 
-let query (program:list<Clause>) (query:Term) 
-    : list<Clause * list<string * Term>> =
+let query (program:list<Clause>) (query:Term) : list<Clause * Substitution> =
   // TODO: Return all clauses from 'program' whose 'Head' can be
   // unified with the specified 'query' and return the resulting
   // substitutions. Before unifying, rename variables in the program

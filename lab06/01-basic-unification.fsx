@@ -19,17 +19,25 @@ type Clause =
 // A program is just a list of clauses
 type Program = Clause list
 
+// A substitution assigns terms to variable names
+type Substitution = Map<string, Term>
+
 // Create a clause that states a fact
 let fact p = { Head = p; Body = [] }
 
 // Create a clause that defines a rule  
 let rule p b = { Head = p; Body = b }
 
+// Helper function (implemented for you!) - this appends two substitutions
+// by iterating over items from 'sub1' and adding them to 'sub2'
+let appendSubstitutions sub1 sub2 = 
+  Map.fold (fun sub2 key value -> Map.add key value sub2) sub1 sub2
+
 // ----------------------------------------------------------------------------
 // Unification of terms and lists
 // ----------------------------------------------------------------------------
 
-let rec unifyLists l1 l2 : option<list<string * Term>> = 
+let rec unifyLists l1 l2 : option<Substitution> = 
   match l1, l2 with 
   | [], [] -> 
       // TODO: Succeeds, but returns an empty substitution
@@ -44,13 +52,13 @@ let rec unifyLists l1 l2 : option<list<string * Term>> =
     // TODO: Lists cannot be unified 
     failwith "not implemented"
 
-and unify t1 t2 : option<list<string * Term>> = 
+and unify t1 t2 : option<Substitution> = 
   match t1, t2 with 
   | _ ->
       // TODO: Add all the necessary cases here!
-      // * For matching atoms, return empty substitution
+      // * For matching atoms, return empty substitution (Map.empty)
       // * For matching predicates, return the result of 'unifyLists'
-      // * For variable and any term, return a new substitution
+      // * For variable and any term, return a new substitution (Map.ofList)
       // * For anything else, return None (failed to unify) 
       failwith "not implemented"
 

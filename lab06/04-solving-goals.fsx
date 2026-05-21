@@ -12,19 +12,23 @@ type Clause =
     Body : Term list }
 
 type Program = Clause list
+type Substitution = Map<string, Term>
 
 let fact p = { Head = p; Body = [] }
 
 let rule p b = { Head = p; Body = b }
 
+let appendSubstitutions sub1 sub2 = 
+  Map.fold (fun sub2 key value -> Map.add key value sub2) sub1 sub2
+
 // ----------------------------------------------------------------------------
 // Substitutions and unification of terms
 // ----------------------------------------------------------------------------
 
-let rec substitute (subst:Map<string, Term>) term = 
+let rec substitute (subst:Substitution) term = 
   failwith "implemented in step 2"
 
-let substituteSubst (newSubst:Map<string, Term>) (subst:list<string * Term>) = 
+let substituteSubst (newSubst:Substitution) (subst:Substitution) = 
   failwith "implemented in step 2"
 
 let substituteTerms subst (terms:list<Term>) = 
@@ -53,7 +57,7 @@ let withFreshVariables (clause:Clause) : Clause =
 let query (program:list<Clause>) (query:Term) =
   failwith "implemented in step 3"
 
-let rec solve program subst goals = 
+let rec solve (program:list<Clause>) (subst:Substitution) (goals:list<Term>) : unit = 
   match goals with 
   | g::goals -> 
       // TODO: We need to solve the goal (term) 'g'. To do so, find all 
@@ -72,7 +76,7 @@ let rec solve program subst goals =
 
   | [] -> 
     // TODO: We solved all goals, which means 'subst' is a possible solution!
-    // Print 'subst' (either using printfn "%A" or in some nicer way).
+    // Print 'subst' (Hint: for var, term in Map.toList subst do ...).
     failwith "not implemented" 
 
 // ----------------------------------------------------------------------------
@@ -96,10 +100,10 @@ let family = [
 
 // Query: father(X, William)
 // Result #1: [ X -> Charles, ... ]
-solve family [] [ Predicate("father", [Variable("X"); Atom("William")]) ]
+solve family Map.empty [ Predicate("father", [Variable("X"); Atom("William")]) ]
 
 // Query: father(X, Y)
 // Result #1: [ X -> Charles, Y -> William, ... ]
 // Result #2: [ X -> William, Y -> George, ... ]
-solve family [] [ Predicate("father", [Variable("X"); Variable("Y")]) ]
+solve family Map.empty [ Predicate("father", [Variable("X"); Variable("Y")]) ]
 
