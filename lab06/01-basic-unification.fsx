@@ -46,7 +46,7 @@ let rec unifyLists l1 l2 : option<Substitution> =
       // TODO: Unify 'h1' with 'h2' using 'unify' and
       // 't1' with 't2' using 'unifyLists'. If both 
       // succeed, return the generated joint substitution!
-      // (For now, you can just append the two lists using @)
+      // (For now, you can use the above 'appendSubstitutions' helper)
       failwith "not implemented"
   | _ -> 
     // TODO: Lists cannot be unified 
