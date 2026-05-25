@@ -77,6 +77,9 @@ List.map (fun k -> m1[k]) (List.ofSeq m1.Keys)
 let rec unify constraints : option<Map<_, _>> =
   match constraints with
   | (Record r1, Record r2) :: constraints ->
+      if Set.isSubset (set r1.Keys) (set r2.Keys) then
+          unify ((List.map (fun k -> (r1[k], r2[k])) (List.ofSeq r1.Keys)) @ constraints)
+      else None
       // TODO: Check that every field name in r1 also appears in r2 using
       // Set.isSubset and on Keys. If not, return None.
       //
@@ -85,18 +88,27 @@ let rec unify constraints : option<Map<_, _>> =
       // and call unify on the combined list.
       //
       // (Hint: use List.ofSeq r1.Keys to iterate over the keys of r1.)
-      failwith "not implemented"
-
-  // TODO: Copy your implementation from the previous step
-  | _ -> failwith "implemented in step 4" 
+  | (Number, Number)::constraints -> unify constraints
+  | (String, String)::constraints -> unify constraints
+  | (Function(ta1, ta2), Function(tb1, tb2))::constraints -> unify ((ta1, tb1)::((ta2, tb2)::constraints))
+  | (Tuple(ta1, ta2), Tuple(tb1, tb2))::constraints -> unify ((ta1, tb1)::((ta2, tb2)::constraints))
+  | (TypeVariable v, t)::constraints ->
+      match unify constraints with
+      | Some ctx ->
+          match ctx.TryFind v with
+          | Some t1 -> if t = t1 then Some(ctx) else None
+          | None -> Some(Map.add v t ctx)
+      | None -> None
+  | [] -> Some Map.empty
+  | _ -> None
 
 // Success: r2 has all fields of r1 (and more) - Some ["a", Number]
 unify [Record(Map.ofList ["thing", TypeVariable "a"]),
-       Record(Map.ofList ["thing", Number; "more", String])]
+       Record(Map.ofList ["thing", Number; "more", String])] |> printfn "a-some %A"
 
 // None: r1 requires "more" but r2 does not have it
 unify [Record(Map.ofList ["thing", Number; "more", String]),
-       Record(Map.ofList ["thing", Number])]
+       Record(Map.ofList ["thing", Number])] |> printfn "b-none %A"
 
 
 // ----------------------------------------------------------------------------
@@ -105,13 +117,18 @@ unify [Record(Map.ofList ["thing", Number; "more", String]),
 
 let rec substitute (subst:Map<string, Type>) typ =
   match typ with
-  | Record r ->
+  | Record r -> Record (Map.map (fun key v -> (substitute subst v)) r)
       // TODO: Apply substitute to every field type in r using Map.map.
       // (Hint: Map.map takes a function (key -> value -> result))
-      failwith "not implemented"
-
-  // TODO: Copy your implementation from the previous step
-  | _ -> failwith "implemented in step 4" 
+      
+    | Number -> Number
+    | String -> String
+    | TypeVariable v ->
+        match subst.TryFind v with
+        | Some t -> t
+        | None -> failwith ("variable not found: " + v)
+    | Function(t1, t2) -> Function((substitute subst t1), (substitute subst t2))
+    | Tuple(t1, t2) -> Tuple((substitute subst t1), (substitute subst t2))
 
 // ----------------------------------------------------------------------------
 // Type checker
@@ -119,27 +136,52 @@ let rec substitute (subst:Map<string, Type>) typ =
 
 let rec typeCheck (ctx:TypingContext) expr =
   match expr with
-  | StringConst _ -> failwith "implemented in step 1"
-  | NumberConst _ -> failwith "implemented in step 1"
-  | Binary _ -> failwith "implemented in step 1"
-  | Variable _ -> failwith "implemented in step 1"
-  | If _ -> failwith "implemented in step 1"
-  | Let _ -> failwith "implemented in step 2"
-  | Lambda _ -> failwith "implemented in step 2"
-  | Application _ -> failwith "implemented in step 4"
-  | MakeTuple _ -> failwith "implemented in step 3"
-  | GetTuple _ -> failwith "implemented in step 3"
+  | StringConst _ -> String
+  | NumberConst _ -> Number
+  | Binary(op, l, r) ->
+      let ops = set ["*"; "/"; "+"; "-"]
+      match (typeCheck ctx l), (typeCheck ctx r) with
+      | (Number, Number) -> if ops.Contains op then Number else failwith "Unsupported operation"
+      | _ -> failwith "Invalid bin args"
+  | Variable v ->
+      if ctx.ContainsKey v then ctx[v] else failwith "var not found"
+  | If(e1, e2, e3) ->
+      match typeCheck ctx e1 with
+      | Number ->
+          let t1 = typeCheck ctx e2
+          let t2 = typeCheck ctx e3
+          if t1 = t2 then t1 else failwith "If doesnt have the same type"
+      | _ -> failwith "If condition is not int"
+  | Lambda(v, t, e) ->
+      Function(t, typeCheck (Map.add v t ctx) e)
+  | Let(v, e1, e2) -> typeCheck ctx (Lambda(v, typeCheck ctx e1, e2))
+  | MakeTuple(e1, e2) -> Tuple(typeCheck ctx e1, typeCheck ctx e2)
+  | GetTuple(b, e) ->
+      match typeCheck ctx e with
+      | Tuple(t1, t2) -> if b then t1 else t2
+      | _ -> failwith "was expecting a tuple"
 
-  | MakeRecord(fields) ->
+  | Application(e1, e2) ->
+      match typeCheck ctx e1 with
+      | Function(t1a, t2) ->
+          match unify [(t1a, typeCheck ctx e2)] with
+          | Some subst -> substitute subst t2
+          | None -> failwith "type mismatch"
+      | _ -> failwith "was expecting a function"
+
+  | MakeRecord(fields) -> Record (Map.map (fun k v -> typeCheck ctx v) fields)
       // TODO: Type-check every field expression and collect the results into
       // a map of field types. Return Record of that map.
-      failwith "not implemented"
-
   | GetRecord(e, field) ->
+      match typeCheck ctx e with
+      | Record(f) -> 
+          match f.TryFind field with
+          | Some(t) -> t
+          | None -> failwith "field is not inside"
+      | _ -> failwith "must be a record"
       // TODO: Type-check e - it must be a Record type. Check that 'field'
       // is present in the record's field map (use .ContainsKey). Return the
       // type of that field. Fail if it is not there.
-      failwith "not implemented"
 
 
 // ----------------------------------------------------------------------------
@@ -154,7 +196,7 @@ let e1 =
       "age"),
     NumberConst 1)
 
-typeCheck Map.empty e1
+typeCheck Map.empty e1 |> printfn "1 %A"
 
 // Fail: {name:"Yoda"}.age => type error: field "age" does not exist
 let e2 =
@@ -162,7 +204,7 @@ let e2 =
     MakeRecord(Map.ofList ["name", StringConst "Yoda"]),
     "age")
 
-typeCheck Map.empty e2
+// typeCheck Map.empty e2 |> printfn "2 %A" // should fail
 
 // Success: (fun (x:{age:Number}) -> x.age + 1) {name:"Yoda", age:700} => Number
 // The function requires only 'age'; the argument has 'name' too - that is fine.
@@ -174,7 +216,7 @@ let e3 =
         NumberConst 1)),
     MakeRecord(Map.ofList ["name", StringConst "Yoda"; "age", NumberConst 700]))
 
-typeCheck Map.empty e3
+typeCheck Map.empty e3 |> printfn "3 %A"
 
 // let r = (fun (x:{age:Number}) -> x) {name:"Yoda", age:700}
 // in r.name
@@ -190,4 +232,5 @@ let e4 =
       MakeRecord(Map.ofList ["name", StringConst "Yoda"; "age", NumberConst 700])),
     GetRecord(Variable "r", "name"))
 
-typeCheck Map.empty e4
+typeCheck Map.empty e4 |> printfn "4 %A" // should fail
+

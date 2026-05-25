@@ -37,14 +37,17 @@ let t3 = Application(Lambda("x", Variable("x")), Variable("y"))
 let getTopLevelStructure t =
   match t with
   | Variable(v) -> $"variable: {v}" 
-  // TODO: Add cases for Lambda and Application
+  | Lambda(v, _) -> $"lambda: {v}"
+  | Application(_, _) -> "application"
 
-getTopLevelStructure t1 = "variable: x"
-getTopLevelStructure t2 = "lambda: x"
-getTopLevelStructure t3 = "application"
+getTopLevelStructure t1 = "variable: x" |> printfn "%A"
+getTopLevelStructure t2 = "lambda: x" |> printfn "%A"
+getTopLevelStructure t3 = "application" |> printfn "%A"
 
-getTopLevelStructure (Variable("zzz")) = "variable: zzz"
-getTopLevelStructure (Lambda("zzz", Variable("x"))) = "lambda: zzz"
+getTopLevelStructure (Variable("zzz")) = "variable: zzz" |> printfn "%A"
+getTopLevelStructure (Lambda("zzz", Variable("x"))) = "lambda: zzz" |> printfn "%A"
+
+printfn ""
 
 // ============================================================================
 // Basic recursive term processing
@@ -64,17 +67,20 @@ let helloworld = hello + " " + world + "!"
 let rec allAccessedVariables t = 
   match t with 
   | Variable(v) -> v
-  // TODO: Implement the cases for Lambda and Application!
+  | Lambda(v, t) -> allAccessedVariables t
+  | Application(t1, t2) -> allAccessedVariables t1 + "," + allAccessedVariables t2
 
 
-allAccessedVariables t1 = "x"
-allAccessedVariables t2 = "x"
-allAccessedVariables t3 = "x,y"
+allAccessedVariables t1 = "x" |> printfn "t1 %A"
+allAccessedVariables t2 = "x" |> printfn "t2 %A"
+allAccessedVariables t3 = "x,y" |> printfn "t3 %A"
 
 let txyz = Application(Application(Variable("x"), Variable("y")), Variable("z"))
 let txxx = Application(Application(Variable("x"), Variable("x")), Variable("x"))
-allAccessedVariables txyz = "x,y,z"
-allAccessedVariables txxx = "x,x,x"
+allAccessedVariables txyz = "x,y,z" |> printfn "txyz %A"
+allAccessedVariables txxx = "x,x,x" |> printfn "txxx %A"
+
+printfn ""
 
 // ============================================================================
 // Pretty printing lambda terms
@@ -97,9 +103,11 @@ let rec format term =
       "(" + s1 + " " + s2 + ")"
   | Variable x -> x
 
-format t1 = "x"
-format t2 = "(\\x.x)"
-format t3 = "((\\x.x) y)"
+format t1 = "x" |> printfn "%A"
+format t2 = "(\\x.x)" |> printfn "%A"
+format t3 = "((\\x.x) y)" |> printfn "%A"
+
+printfn ""
 
 // ============================================================================
 // Defining variable substitution
@@ -114,7 +122,10 @@ format t3 = "((\\x.x) y)"
 // annotations to tell the F# compiler what types to expect. This means 
 // you'll get better error messages!
 let rec substitute (var:string) (subst:Term) (term:Term) : Term = 
-  failwith "TODO"
+  match term with
+  | Variable(v) -> if v = var then subst else term
+  | Lambda(v, t) -> if v = var then term else Lambda(v, substitute var subst t)
+  | Application(t1, t2) -> Application(substitute var subst t1, substitute var subst t2)
   // * If the term is 'Variable' then you need 'if' to decide between two cases:
   //   - the variable is 'var' - return the substitution
   //   - the variable is something else - return it unmodified
@@ -128,19 +139,21 @@ let rec substitute (var:string) (subst:Term) (term:Term) : Term =
 // TEST: The term is just a variable and it gets substituted 
 let ts1 = Variable("x")
 let sub = Lambda("z", Variable("z"))
-format (substitute "x" sub ts1) = "(\\z.z)"
+format (substitute "x" sub ts1) = "(\\z.z)" |> printfn "ts1 %A"
 
 // TEST: The term contains the variable twice - both get substituted
 let ts2 = Application(Variable("x"), Variable("x"))
-format (substitute "x" sub ts2) = "((\\z.z) (\\z.z))"
+format (substitute "x" sub ts2) = "((\\z.z) (\\z.z))" |> printfn "%A"
 
 // TEST: Variable 'y' is free and so it gets substituted for 'z'
 let ts3 = Lambda("x", Variable("y"))
-format (substitute "y" (Variable("z")) ts3) = "(\\x.z)"
+format (substitute "y" (Variable("z")) ts3) = "(\\x.z)" |> printfn "%A"
 
 // TEST: Variable 'x' is bound by the lambda - no substitution happens!
 let ts4 = Lambda("x", Variable("x"))
-format (substitute "x" (Variable("z")) ts4) = "(\\x.x)"
+format (substitute "x" (Variable("z")) ts4) = "(\\x.x)" |> printfn "ts4 %A"
+
+printfn ""
 
 // ============================================================================
 // Getting free variables of a term
@@ -162,7 +175,10 @@ let sm = su - set [ 1; 3; 5 ] // Remove elements from the set
 
 
 let rec freeVariables (term:Term) : Set<string> = 
-  failwith "TODO"
+  match term with
+  | Variable(v) -> set [v]
+  | Lambda(v, t) -> freeVariables t - set [v]
+  | Application(t1, t2) -> freeVariables t1 + freeVariables t2
   // * If the term is 'Variable' the variable is free - return it as a singleton set
   // * If the term is 'Application', get the free variables of the two subtersm and
   //   return a union of the two sets using +
@@ -171,10 +187,11 @@ let rec freeVariables (term:Term) : Set<string> =
 
 
 let tf1 = Application(Variable("x"), Variable("y"))
-freeVariables tf1 = set ["x"; "y"]
+freeVariables tf1 = set ["x"; "y"] |> printfn "tf1 %A"
 
 let tf2 = Lambda("x", Application(Variable("z"), Variable("z")))
-freeVariables tf2 = set ["z"]
+freeVariables tf2 = set ["z"] |> printfn "%A"
 
 let tf3 = Lambda("x",Variable("x"))
-freeVariables tf3 = set []
+freeVariables tf3 = set [] |> printfn "tf3 %A"
+

@@ -30,26 +30,29 @@ type TypingContext = Map<string, Type>
 
 let rec typeCheck (ctx:TypingContext) expr =
   match expr with
-  | StringConst _ -> failwith "implemented in step 1"
-  | NumberConst _ -> failwith "implemented in step 1"
-  | Binary _ -> failwith "implemented in step 1"
-  | Variable _ -> failwith "implemented in step 1"
-  | If _ -> failwith "implemented in step 1"
-
+  | StringConst _ -> String
+  | NumberConst _ -> Number
+  | Binary(op, l, r) ->
+      let ops = set ["*"; "/"; "+"; "-"]
+      match (typeCheck ctx l), (typeCheck ctx r) with
+      | (Number, Number) -> if ops.Contains op then Number else failwith "Unsupported operation"
+      | _ -> failwith "Invalid bin args"
+  | Variable v ->
+      if ctx.ContainsKey v then ctx[v] else failwith "var not found"
+  | If(e1, e2, e3) ->
+      match typeCheck ctx e1 with
+      | Number ->
+          let t1 = typeCheck ctx e2
+          let t2 = typeCheck ctx e3
+          if t1 = t2 then t1 else failwith "If doesnt have the same type"
+      | _ -> failwith "If condition is not int"
   | Lambda(v, t, e) ->
-      // TODO: Type-check the lambda body 'e' in a context extended with
-      // variable 'v' having the annotated type 't'. Note that this is
-      // why we had to add type to 'Lambda'!
-      failwith "not implemented"
-
+      Function(t, typeCheck (Map.add v t ctx) e)
   | Application(e1, e2) ->
-      // TODO: Type-check e1 and e2. e1 must have a Function(t1, t2) type -
-      // its argument type must match the type of e2 and the result is t2.
-      failwith "not implemented"
-
-  | Let(v, e1, e2) ->
-      // TODO: Type check 'let v = e1 in e2' 
-      failwith "not implemented"
+      match typeCheck ctx e1 with
+      | Function(t1, t2) -> if (typeCheck ctx e2) = t1 then t2 else failwith "arg types not matching"
+      | _ -> failwith "was expecting a function type"
+  | Let(v, e1, e2) -> typeCheck ctx (Lambda(v, typeCheck ctx e1, e2))
 
 // ----------------------------------------------------------------------------
 // Test cases
@@ -62,28 +65,28 @@ let ef1 =
   Let("x", Binary("+", NumberConst 10, NumberConst 20),
     Variable("x"))
 
-typeCheck Map.empty ef1
+typeCheck Map.empty ef1 |> printfn "ef1 %A"
 
 // Type error: 'x' is not in scope in the binding expression
 let ef2 =
   Let("x", Variable("x"),
     Binary("+", NumberConst 10, NumberConst 20))
 
-typeCheck Map.empty ef2
+// typeCheck Map.empty ef2 |> printfn "ef2 %A" // should fail
 
 // Correctly typed: fun (x:Number) -> x+20 => Function(Number, Number)
 let ef3 =
   Lambda("x", Number,
     Binary("+", Variable "x", NumberConst 20))
 
-typeCheck Map.empty ef3
+typeCheck Map.empty ef3 |> printfn "ef3 %A"
 
 // Type error: '+' applied to a String argument (x has type String)
 let ef4 =
   Lambda("x", String,
     Binary("+", Variable "x", NumberConst 20))
 
-typeCheck Map.empty ef4
+// typeCheck Map.empty ef4 |> printfn "ef4 %A" // should fail
 
 // Correctly typed: (fun (x:Number) -> x+10) 32 => Number
 let ef5 =
@@ -91,7 +94,7 @@ let ef5 =
     Lambda("x", Number, Binary("+", Variable "x", NumberConst 10)),
     NumberConst(32) )
 
-typeCheck Map.empty ef5
+typeCheck Map.empty ef5 |> printfn "ef5 %A"
 
 // Type error: function expects Number but called with String
 let ef6 =
@@ -99,7 +102,7 @@ let ef6 =
     Lambda("x", Number, Binary("+", Variable "x", NumberConst 10)),
     StringConst("32") )
 
-typeCheck Map.empty ef6
+// typeCheck Map.empty ef6 |> printfn "ef6 %A" // should fail
 
 // Type error: 32 is not a function
 let ef7 =
@@ -107,4 +110,5 @@ let ef7 =
     NumberConst(32),
     Lambda("x", Number, Binary("+", Variable "x", NumberConst 10)))
 
-typeCheck Map.empty ef7
+// typeCheck Map.empty ef7 |> printfn "ef7 %A" // should fail
+

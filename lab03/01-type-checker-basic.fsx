@@ -27,32 +27,34 @@ type TypingContext = Map<string, Type>
 
 let rec typeCheck (ctx:TypingContext) expr =
   match expr with
-  | StringConst _ ->
-      // TODO: Return the type of a string constant.
-      failwith "not implemented"
-
-  | NumberConst _ ->
-      // TODO: Return the type of a number constant.
-      failwith "not implemented"
-
+  | StringConst _ -> String
+  | NumberConst _ -> Number
   | Binary(op, l, r) ->
+      let ops = set ["*"; "/"; "+"; "-"]
+      match (typeCheck ctx l), (typeCheck ctx r) with
+      | (Number, Number) -> if ops.Contains op then Number else failwith "Unsupported operation"
+      | _ -> failwith "Invalid bin args"
       // TODO: Type-check binary expressions. The supported operators are
       // "*", "/", "+", "-". Both arguments must be Number and the result is
       // Number. Fail with an error for unknown operators or for non-number
       // arguments. (Hint: use set ["*"; "/"; "+"; "-"] to define the set.)
-      failwith "not implemented"
 
   | Variable v ->
+      if ctx.ContainsKey v then ctx[v] else failwith "var not found"
       // TODO: Look up the variable type in the context using ctx.ContainsKey
       // and ctx[v]. If the variable is not in the context, fail with an error.
-      failwith "not implemented"
 
   | If(e1, e2, e3) ->
+      match typeCheck ctx e1 with
+      | Number ->
+          let t1 = typeCheck ctx e2
+          let t2 = typeCheck ctx e3
+          if t1 = t2 then t1 else failwith "If doesnt have the same type"
+      | _ -> failwith "If condition is not int"
       // TODO: Type-check the condition 'e1' and both branches 'e2', 'e3'.
       // * The condition must be Number
       // * Both branches must have the same type
       // * The overall type is the type of the branches
-      failwith "not implemented"
 
 // ----------------------------------------------------------------------------
 // Test cases
@@ -66,7 +68,7 @@ let e1 =
     Binary("+", NumberConst 40, NumberConst 2),
     Variable("num"))
 
-typeCheck vars e1
+// typeCheck vars e1 |> printfn "e1 %A" // should fail
 
 // Type error: '+' applied to a String argument
 let e2 =
@@ -74,7 +76,7 @@ let e2 =
     Binary("+", StringConst "40", NumberConst 2),
     Variable("num"))
 
-typeCheck vars e2
+// typeCheck vars e2 |> printfn "e2 %A" // should fail
 
 // Type error: variable 'nummmm' is unbound
 let e3 =
@@ -82,7 +84,7 @@ let e3 =
     Binary("+", NumberConst 40, NumberConst 2),
     Variable("nummmm"))
 
-typeCheck vars e3
+// typeCheck vars e3 |> printfn "e3 %A" // should fail
 
 // Correctly typed: if 0 then 40+2 else num => result is Number
 let e4 =
@@ -90,4 +92,5 @@ let e4 =
     Binary("+", NumberConst 40, NumberConst 2),
     Variable("num"))
 
-typeCheck vars e4
+typeCheck vars e4 |> printfn "e4 %A"
+

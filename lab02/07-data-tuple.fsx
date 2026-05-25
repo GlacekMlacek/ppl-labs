@@ -36,24 +36,59 @@ and VariableContext =
 
 let rec evaluate (ctx:VariableContext) e =
   match e with 
-  | Constant _ -> failwith "implemented in step 1"
-  | Binary _ -> failwith "implemented in step 1"
-  | Variable _ -> failwith "implemented in step 1"
-  | Unary _ -> failwith "implemented in step 2"
-  | If _ -> failwith "implemented in step 2"
-  | Log _ -> failwith "implemented in step 3"
-  | Let _ -> failwith "implemented in step 3"
-  | Lambda _ -> failwith "implemented in step 6"
-  | Application _ -> failwith "implemented in step 6"
-
+  | Constant n -> ValNum n
+  | Binary(op, e1, e2) ->
+      let v1 = evaluate ctx e1
+      let v2 = evaluate ctx e2
+      match v1, v2 with 
+      | ValNum n1, ValNum n2 -> 
+          match op with 
+          | "+" -> ValNum(n1 + n2)
+          | "*" -> ValNum(n1 * n2)
+          | _ -> failwith "unsupported binary operator"
+      | _ -> failwith "unsupported val type in binary"
+  | Variable(v) ->
+      match ctx.TryFind v with 
+      | Some res -> res
+      | _ -> failwith ("unbound variable: " + v)
+  | Unary(op, e) ->
+      let v = evaluate ctx e
+      match v with
+        | ValNum n ->
+          match op with
+            | "-" -> ValNum(-n)
+            | _ -> failwith "unsuppoered unary operator"
+        | _ -> failwith "Uunsopported val type in unary"
+  | If(pred, t, f) ->
+      let p = evaluate ctx pred
+      match p with
+          | ValNum(0) -> evaluate ctx f
+          | ValNum(_) -> evaluate ctx t
+          | _ -> failwith "unsupported val type in if"
+  | Log(msg, e) -> 
+      let res = evaluate ctx e
+      printfn "%s: %A" msg res
+      res
+  | Let(v, earg, ebody) ->
+      let arg = evaluate ctx earg
+      let nctx = Map.add v arg ctx
+      evaluate nctx ebody
+  | Lambda(v, e) ->
+      ValClosure(v, e, ctx)
+  | Application(e1, e2) ->
+      let ee1 = evaluate ctx e1
+      match ee1 with
+        | ValClosure(name, lbody, lctx) -> evaluate (Map.add name (evaluate ctx e2) lctx) (Let(name, e2, lbody))
+        | _ -> failwith "was expecting a closure"
   | Tuple(e1, e2) ->
-      // TODO: Construct a tuple value here!
-      failwith "not implemented"
+      ValTuple(evaluate ctx e1, evaluate ctx e2)
 
   | TupleGet(b, e) ->
-      // TODO: Access #1 or #2 element of a tuple value.
-      // (If the argument is not a tuple, this fails.)
-      failwith "not implemented"
+      let ee = evaluate ctx e
+      match b, ee with
+          | true, ValTuple(t, _) -> t
+          | false, ValTuple(_, f) -> f
+          | _, _ -> failwith "expecting tuple"
 
 // ----------------------------------------------------------------------------
 // Test cases
@@ -66,17 +101,18 @@ let ed1 =
   TupleGet(true, 
     Tuple(Binary("*", Constant(2), Constant(21)), 
       Constant(123)))
-evaluate Map.empty ed1
+evaluate Map.empty ed1 |> printfn "ed1 %A\n"
 
 let ed2 = 
   TupleGet(false, 
     Tuple(Binary("*", Constant(2), Constant(21)), 
       Constant(123)))
-evaluate Map.empty ed2
+evaluate Map.empty ed2 |> printfn "ed2 %A\n"
 
 // Data types - trying to get a first element of a value
 // that is not a tuple (This makes no sense and should fail)
 //   (42)#1
 let ed3 = 
   TupleGet(true, Constant(42))
-evaluate Map.empty ed3
+// evaluate Map.empty ed3 |> printfn "ed3 %A\n" // should fail
+

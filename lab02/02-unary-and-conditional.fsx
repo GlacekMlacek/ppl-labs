@@ -9,10 +9,6 @@ type Expression =
   | Constant of int
   | Binary of string * Expression * Expression
   | Variable of string
-
-  // NOTE: Added 'Unary' and 'If' cases here to represent
-  // unary numerical operators and the conditional expression
-  // (See end of the script for example use of the two.)
   | Unary of string * Expression 
   | If of Expression * Expression * Expression
 
@@ -44,9 +40,17 @@ let rec evaluate (ctx:VariableContext) e =
       | Some res -> res
       | _ -> failwith ("unbound variable: " + v)
   | Unary(op, e) ->
-      // TODO: Implement the case for 'Unary' here!
-      failwith "not implemented"
-  // TODO: Add the correct handling of 'If' here!
+      let v = evaluate ctx e
+      match v with
+        | ValNum n ->
+          match op with
+            | "-" -> ValNum(-n)
+            | _ -> failwith "unsuppoered unary operator"
+  | If(pred, t, f) ->
+      let p = evaluate ctx pred
+      match p with
+          | ValNum(0) -> evaluate ctx f
+          | ValNum(_) -> evaluate ctx t
 
 
 // ----------------------------------------------------------------------------
@@ -59,7 +63,7 @@ let euo =
     Binary("*", Constant(1), Constant(2)),
     Unary("-", Binary("*", Constant(-20), Constant(2)))
   )
-evaluate Map.empty euo
+evaluate Map.empty euo |> printfn "%A"
 
 // Conditional expression: if 1 then 42 else 0
 let eif1 = 
@@ -67,7 +71,7 @@ let eif1 =
     Constant(42), 
     Constant(0)
   )
-evaluate Map.empty eif1
+evaluate Map.empty eif1 |> printfn "%A"
 
 // Conditional expression: if 5+(-4) then 21*2 else 0
 let eif2 = 
@@ -75,7 +79,7 @@ let eif2 =
     Binary("*", Constant(21), Constant(2)), 
     Constant(0)
   )
-evaluate Map.empty eif2
+evaluate Map.empty eif2 |> printfn "%A"
 
 // Conditional expression: if 5+4 then 0 else 21*2 
 let eif3 = 
@@ -83,6 +87,6 @@ let eif3 =
     Constant(0),
     Binary("*", Constant(21), Constant(2))
   )
-evaluate Map.empty eif3
+evaluate Map.empty eif3 |> printfn "%A"
 
 
