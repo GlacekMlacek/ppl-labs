@@ -42,13 +42,17 @@ type State =
 // ----------------------------------------------------------------------------
 
 let gotoNextLine (state:State) line : State option =
-  failwith "implemented in step 1"
+  match List.tryFind (fun (n, _) -> n > line) state.Program with
+  | Some(n, _) -> Some { state with CurrentLine = n }
+  | None -> None
 
 let getCurrentCommand state : Command =
-  failwith "implemented in step 1"
+  snd (List.find (fun (n, _) -> n = state.CurrentLine) state.Program)
 
 let getNumberValue value = 
-  failwith "implemented in step 3"
+  match value with
+  | NumberValue n -> n
+  | _ -> failwith "value is not number"
 
 // ----------------------------------------------------------------------------
 // Evaluator
@@ -58,52 +62,85 @@ let getVariableValue state (name:char) =
   // TODO: Variables are stored in Memory at the address equal to the ASCII
   // code of the variable name. Look up 'int name' in state.Memory and wrap
   // the result as NumberValue.
-  failwith "TODO: not implemented"
+  match Map.tryFind (int name) state.Memory with
+  | Some n -> n
+  | None -> failwith "getVarVal failed"
 
 let setVariableValue state (name:char) value =
   // TODO: Set the variable value in state.Memory. Extract the int from 'value'
   // using getNumberValue and store it in Memory at address 'int name'.
-  failwith "TODO: not implemented"
+  { state with Memory = Map.add (int name) (getNumberValue value) state.Memory }
 
 let printValue (value:Value) =
-  failwith "implemented in step 1"
+  match value with
+  | StringValue s -> printf "%s" s
+  | NumberValue n -> printf "%d" n
+  | BoolValue b -> printf "%b" b
 
 let rec evalExpression state (expr:Expression) : Value =
   match expr with
-  | Const _ -> failwith "implemented in step 1"
+  | Const v -> v
   | Variable name ->
       // TODO: Use getVariableValue to read the variable's value from Memory.
-      failwith "TODO: not implemented"
-  | Function _ -> failwith "implemented in step 2"
+      NumberValue (getVariableValue state name)
+  | Function("=", [e1; e2]) -> BoolValue(evalExpression state e1 = evalExpression state e2)
+  | Function("-", [e1; e2]) ->
+      match evalExpression state e1, evalExpression state e2 with
+      | NumberValue x, NumberValue y -> NumberValue(x - y)
+      | _, _ -> failwith "wrong args for '-'"
+  | Function(_, _) -> failwith "function not implemented"
 
 let rec runCommand state cmd : State option =
   match cmd with
-  | Print _ -> failwith "implemented in step 3"
-  | Goto _ -> failwith "implemented in step 1"
-  | If _ -> failwith "implemented in step 2"
+  | Print(expr, b) ->
+      evalExpression state expr |> printValue
+      if b then printf "\n"
+      gotoNextLine state state.CurrentLine
+  | Goto target ->
+      Some { state with CurrentLine = target }
+  | If(e, c) ->
+      match evalExpression state e with
+      | BoolValue b -> if b then runCommand state c else gotoNextLine state state.CurrentLine
+      | _ -> failwith "if was expecting a bool"
   
+  // | Assign(s, e) -> gotoNextLine { state with Variables = Map.add s (evalExpression state e) state.Variables } state.CurrentLine
   | Assign(name, expr) ->
       // TODO: Evaluate 'expr' and store the result using setVariableValue
-      failwith "TODO: not implemented"
+      gotoNextLine (setVariableValue state name (evalExpression state expr)) state.CurrentLine
 
   | Poke(addr, expr) ->
       // TODO: Evaluate 'addr' to get the target memory address and 'expr' to
       // get the value. Write the value directly into Memory at that address.
       // Unlike Assign, this bypasses the variable name - any address can be
       // written, including one that happens to be a variable's location!
-      failwith "TODO: not implemented"
+      gotoNextLine (setVariableValue state (char (getNumberValue (evalExpression state addr))) (evalExpression state expr)) state.CurrentLine
   
   | Peek(name, addr) ->
       // TODO: Evaluate 'addr' to get a memory address, read the int stored
       // there, and store it as the value of variable 'name' (use setVariableValue).
       // This is the read counterpart to Poke.
-      failwith "TODO: not implemented"
+      runCommand state (Assign(name, Const (evalExpression state addr)))
   
-  | For _ -> failwith "implemented in step 3"
-  | Next _ -> failwith "implemented in step 3"
+  | For(v, e1, e2) ->
+      match evalExpression state e1, evalExpression state e2 with
+      | NumberValue lo, NumberValue hi ->
+          let nstate = { state with LoopStack = List.append [(v, hi, state.CurrentLine)] state.LoopStack }
+          runCommand nstate (Assign(v, Const (NumberValue lo)))
+      | _ -> failwith "forloop init error"
+  | Next v ->
+      let vv = 1 + getVariableValue state v
+      let nstate = setVariableValue state v (NumberValue vv)
+      let _, limit, jmp = List.find (fun (name, _, _) -> name = v) state.LoopStack
+      if vv <= limit then gotoNextLine nstate jmp else gotoNextLine nstate nstate.CurrentLine
+
+
+let rec runCurrentCommand state = 
+  runCommand state (getCurrentCommand state)
 
 let rec runProgram state : unit =
-  failwith "implemented in step 1"
+  match runCurrentCommand state with
+  | Some nstate -> runProgram nstate
+  | None -> ()
 
 // ----------------------------------------------------------------------------
 // Test cases

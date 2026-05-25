@@ -22,7 +22,7 @@ and Special =
   | String of string
   | Code of (Objekt -> Objekt)
 
-#load "objekt-visualizer.fs"
+// #load "objekt-visualizer.fs"
 
 // ----------------------------------------------------------------------------
 // Helper functions for constructing objects
@@ -84,17 +84,19 @@ let tryFindSlot (name : string) (obj : Objekt) : Objekt option =
   // TODO: Search for a slot named 'name' directly on 'obj', with no inheritance
   // (this is data lookup). Return Some(value) if found, None otherwise.
   // (Hint: use List.tryPick on obj.Slots)
-  failwith "not implemented"
+  List.tryPick (fun s -> if s.Name = name then Some s.Value else None) obj.Slots
 
 let tryFindSuper (cls : Objekt) : Objekt option =
   // TODO: Return the superclass of 'cls', or None if it has no superclass.
   // The superclass is stored in the 'super*' slot.
-  failwith "not implemented"
+  tryFindSlot "super*" cls
 
 let findClass (obj : Objekt) : Objekt =
   // TODO: Return the class of 'obj'.
   // The class is stored in the 'class*' slot; fail if it is absent.
-  failwith "not implemented"
+  match tryFindSlot "class*" obj with
+  | Some o -> o
+  | None -> failwith "not a class"
 
 let rec lookupMethod (name : string) (cls : Objekt) : (Objekt -> Objekt) option =
   // TODO: Search for a method named 'name' starting at class 'cls'.
@@ -102,14 +104,24 @@ let rec lookupMethod (name : string) (cls : Objekt) : (Objekt -> Objekt) option 
   // value is a Code method, return Some f. If found but not a Code, fail.
   // If not found in 'cls', recurse into the superclass via 'tryFindSuper'.
   // Return None if the entire hierarchy is exhausted without finding it.
-  failwith "not implemented"
+  match tryFindSlot name cls with
+  | Some({ Special = Some s }) ->
+      match s with
+      | Code f -> Some f
+      | _ -> failwith "not a method"
+  | None ->
+      match tryFindSuper cls with
+      | Some sup -> lookupMethod name sup
+      | None -> failwith "doesnt contain method"
 
 let send (name : string) (obj : Objekt) : Objekt =
   // TODO: Send message 'name' to 'obj'.
   // First, find the class of 'obj', look up the method in the class hierarchy.
   // Then, call it with 'obj' as the receiver. Fail with "message not understood"
   // if no method is found (Again, we are starting with a version with no arguments.)
-  failwith "not implemented"
+  match lookupMethod name (findClass obj) with
+  | Some f -> f obj
+  | None -> failwith "message not understood"
 
 // ----------------------------------------------------------------------------
 // DEMO: Class hierarchy with inherited and overridden methods
@@ -130,12 +142,12 @@ let CheshireCat : Objekt = makeClass "CheshireCat" Cat [
 let mog = makeInstance Cat []
 let cheshire = makeInstance CheshireCat []
 
-ObjektVis.print mog
-ObjektVis.print cheshire
+// ObjektVis.print mog
+// ObjektVis.print cheshire
 
 // TESTS: 'pet' is inherited by both; 'cheshire' speaks differently!
-mog |> send "pet" |> getStringValue  // "Purr!"
-cheshire |> send "pet" |> getStringValue  // "Purr!"
+printfn "%A" (mog |> send "pet" |> getStringValue)  // "Purr!"
+printfn "%A" (cheshire |> send "pet" |> getStringValue)  // "Purr!"
 
-mog  |> send "speak" |> getStringValue  // "Meow!"
-cheshire |> send "speak" |> getStringValue  // "We are all mad!"
+printfn "%A" (mog  |> send "speak" |> getStringValue)  // "Meow!"
+printfn "%A" (cheshire |> send "speak" |> getStringValue)  // "We are all mad!"

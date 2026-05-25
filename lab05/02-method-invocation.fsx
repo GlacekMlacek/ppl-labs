@@ -21,7 +21,7 @@ and Special =
   // The function receives the object on which the message was sent ('self').
   | Code of (Objekt -> Objekt)
 
-#load "objekt-visualizer.fs"
+// #load "objekt-visualizer.fs"
 
 // ----------------------------------------------------------------------------
 // Helper functions for constructing objects
@@ -49,17 +49,25 @@ let printString (obj : Objekt) : unit =
 // ----------------------------------------------------------------------------
 
 let getParents (obj : Objekt) : Objekt list =
-  failwith "copy from step 1"
+  List.choose (fun s -> if s.Name.EndsWith("*") then Some s.Value else None) obj.Slots
 
 let rec findSlots (name : string) (obj : Objekt) : Slot list =
-  failwith "copy from step 1"
+  match List.tryFind (fun s -> s.Name = name) obj.Slots with
+  | Some s -> [s]
+  | _ -> List.collect (fun o -> findSlots name o) (getParents obj)
 
 let send (name : string) (obj : Objekt) : Objekt =
   // TODO: Extend 'send' from step 1 to handle method invocation.
   // When 'findSlots' returns a slot whose value has Special = Some(Code f),
   // call 'f obj' - passing the receiver as the argument - and return the result.
   // The rest is the same as in step #1
-  failwith "not implemented"
+  match findSlots name obj with
+  | [s]  -> 
+      match s.Value.Special with
+      | Some(Code f) -> f obj
+      | _ -> s.Value
+  | [] -> failwith "missing slot"
+  | _ -> failwith "multiple slots"
 
 // ----------------------------------------------------------------------------
 // Primitive string objects
@@ -91,7 +99,7 @@ let empty : Objekt = makeObject []
 // The method should use 'send' to look up the 'name' slot on the receiver
 // and pass the result to 'printString'. Return 'empty' as the result.
 let printable : Objekt =
-  failwith "not implemented"
+  makeObject [ "print", makeMethod (fun obj -> printString (send "name" obj); empty) ]
 
 
 let alice = makeObject [
@@ -113,17 +121,20 @@ let aristocrat = makeObject [
 let cheshire = makeObject [
   "animal*", cat
   "fictional*", alice
+  "printable*", printable
   "name", makeString "Cheshire cat"
   "sound", makeString "We are all mad!"
 ]
 let mog = makeObject [
   "animal*", cat
   "fictional*", forgetful
+  "printable*", printable
   "name", makeString "Mog"
 ]
 let larry = makeObject [
   "animal*", cat
   "aristocrat*", aristocrat
+  "printable*", printable
   "name", makeString "Larry"
 ]
 

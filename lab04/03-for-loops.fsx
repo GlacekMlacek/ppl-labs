@@ -42,34 +42,57 @@ type State =
 // ----------------------------------------------------------------------------
 
 let gotoNextLine (state:State) line : State option =
-  failwith "implemented in step 1"
+  match List.tryFind (fun (n, _) -> n > line) state.Program with
+  | Some(n, _) -> Some { state with CurrentLine = n }
+  | None -> None
 
 let getCurrentCommand state : Command =
-  failwith "implemented in step 1"
+  snd (List.find (fun (n, _) -> n = state.CurrentLine) state.Program)
 
 let getNumberValue (value:Value) : int =
   // TODO: Helper that extracts numerical value or fails
-  failwith "TODO: not implemented"
+  match value with
+  | NumberValue n -> n
+  | _ -> failwith "value is not number"
   
 // ----------------------------------------------------------------------------
 // Evaluator
 // ----------------------------------------------------------------------------
 
 let printValue (value:Value) =
-  failwith "implemented in step 1"
-
+  match value with
+  | StringValue s -> printf "%s" s
+  | NumberValue n -> printf "%d" n
+  | BoolValue b -> printf "%b" b
 let rec evalExpression state (expr:Expression) : Value =
-  failwith "implemented in steps 1 and 2"
+  match expr with
+  | Const v -> v
+  | Function("=", [e1; e2]) -> BoolValue(evalExpression state e1 = evalExpression state e2)
+  | Function("-", [e1; e2]) ->
+      match evalExpression state e1, evalExpression state e2 with
+      | NumberValue x, NumberValue y -> NumberValue(x - y)
+      | _, _ -> failwith "wrong args for '-'"
+  | Function(_, _) -> failwith "function not implemented"
+  | Variable v ->
+      match Map.tryFind v state.Variables with
+      | Some v -> v
+      | None -> failwith "variable not found"
 
 let rec runCommand state cmd : State option =
   match cmd with
-  | Print _ ->
+  | Print(expr, b) ->
+      evalExpression state expr |> printValue
+      if b then printf "\n"
+      gotoNextLine state state.CurrentLine
       // TODO: Modify 'printValue' to use 'printf' (not 'printfn')
       // and print a '\n' character here if required. 
-      failwith "TODO: not implemented"
-  | Goto _ -> failwith "implemented in step 1"
-  | Assign _ -> failwith "implemented in step 2"
-  | If _ -> failwith "implemented in step 2"
+  | Goto target ->
+      Some { state with CurrentLine = target }
+  | Assign(s, e) -> gotoNextLine { state with Variables = Map.add s (evalExpression state e) state.Variables } state.CurrentLine
+  | If(e, c) ->
+      match evalExpression state e with
+      | BoolValue b -> if b then runCommand state c else gotoNextLine state state.CurrentLine
+      | _ -> failwith "if was expecting a bool"
 
   // TODO: FOR <v> = <e1> TO <e2> sets the loop variable <V> to the lower bound
   // (obtained by evaluating <e1>). We then need to remember that we started
@@ -77,17 +100,34 @@ let rec runCommand state cmd : State option =
   // bound and (iii) the current line) to LoopStack so that NEXT <v> knows 
   // where to jump and when to stop. Then continue into the loop body.
   // (hint: use getNumberValue helper here!)
-  | For _ -> failwith "not implemented"
+  // | For of string * Expression * Expression
+  // | Next of string
+  | For(v, e1, e2) ->
+      match evalExpression state e1, evalExpression state e2 with
+      | NumberValue lo, NumberValue hi ->
+          let nstate = { state with Variables = Map.add v (NumberValue lo) state.Variables; LoopStack = List.append [(v, hi, state.CurrentLine)] state.LoopStack }
+          gotoNextLine nstate state.CurrentLine
+      | _ -> failwith "forloop init error"
 
   // TODO: NEXT <v> increments the variable <v> by 1. Then look through the 
   // LoopStack to find the loop for this variable. If we are within bounds,
   // use gotoNextLine to jump to the line just after the loop start. If we 
   // finished looping, remove the LoopStack record (hint: List.filter) and 
   // continue (gotoNextLine).
-  | Next _ -> failwith "not implemented"
+  | Next v ->
+      let vv = getNumberValue (Map.find v state.Variables) + 1
+      let nstate = { state with Variables = Map.add v (NumberValue vv) state.Variables }
+      let _, limit, jmp = List.find (fun (name, _, _) -> name = v) state.LoopStack
+      if vv <= limit then gotoNextLine nstate jmp else gotoNextLine nstate nstate.CurrentLine
+
+
+let rec runCurrentCommand state = 
+  runCommand state (getCurrentCommand state)
 
 let rec runProgram state : unit =
-  failwith "implemented in step 1"
+  match runCurrentCommand state with
+  | Some nstate -> runProgram nstate
+  | None -> ()
 
 // ----------------------------------------------------------------------------
 // Test cases

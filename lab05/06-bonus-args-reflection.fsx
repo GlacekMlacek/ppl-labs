@@ -23,7 +23,7 @@ and Special =
   // and an argument list object ('args') - instead of just the receiver.
   | Code of (Objekt -> Objekt -> Objekt)
 
-#load "objekt-visualizer.fs"
+// #load "objekt-visualizer.fs"
 
 // ----------------------------------------------------------------------------
 // Helper functions for constructing objects
@@ -70,16 +70,26 @@ let makeClass name super methods =
 // ----------------------------------------------------------------------------
 
 let tryFindSlot (name : string) (obj : Objekt) : Objekt option =
-  failwith "copy from step 5"
+  List.tryPick (fun s -> if s.Name = name then Some s.Value else None) obj.Slots
 
 let tryFindSuper (cls : Objekt) : Objekt option =
-  failwith "copy from step 5"
+  tryFindSlot "super*" cls
 
 let findClass (obj : Objekt) : Objekt =
-  failwith "copy from step 5"
+  match tryFindSlot "class*" obj with
+  | Some o -> o
+  | None -> failwith "not a class"
 
 let rec lookupMethod (name : string) (cls : Objekt) : (Objekt -> Objekt -> Objekt) option =
-  failwith "copy from step 5"
+  match tryFindSlot name cls with
+  | Some({ Special = Some s }) ->
+      match s with
+      | Code f -> Some f
+      | _ -> failwith "not a method"
+  | None ->
+      match tryFindSuper cls with
+      | Some sup -> lookupMethod name sup
+      | None -> failwith "doesnt contain method"
 
 // ----------------------------------------------------------------------------
 // Argument lists and send
@@ -99,7 +109,7 @@ let makeArgsList (args : list<string * Objekt>) : Objekt =
   let getters = 
     // For each of the 'arg', we want to create a getter of the same
     // name, which uses 'tryFindSlot' to fetch the slot value.
-    failwith "TODO"    
+    List.map (fun (s, o) -> (s, (fun inst -> fun fargs -> tryFindSlot s o |> Option.get))) args
   let specialArgsList = makeClass "__ArgsList" ArgsList getters
   // Now we create instance of the new class, containing the arg values
   makeInstance specialArgsList args
@@ -109,7 +119,12 @@ let makeArgsList (args : list<string * Objekt>) : Objekt =
 // method function, matching the new 'Objekt -> Objekt -> Objekt' signature.
 // The error message also now includes the class name for easier debugging.
 let send (name : string) (args : list<string * Objekt>) (obj : Objekt) : Objekt =
-  failwith "not implemented"
+  // let cls = match tryFindSlot "name*" obj with
+  //           | Some({Special = Some(String s)}) -> s
+  //           | _ -> failwith "class doesnt have a name"
+  match lookupMethod name (findClass obj) with
+  | Some f -> f obj (makeArgsList args)
+  | None -> failwith "message not understood, class: " // + cls
 
 // ----------------------------------------------------------------------------
 // Bootstrapping: Object, Class, and Str
@@ -139,7 +154,12 @@ let Str' : Objekt = makeClass "String" Object [
     // TODO: 'append' concatenates two strings.
     // Access the argument by sending "other" to 'args'.
     // Match both 'inst' and 'other' as Some(String s) and return makeString (s1 + s2).
-    failwith "not implemented")
+    let receiver = send "target*" [] inst
+    let arg = send "other" [] args
+    match receiver.Special, arg.Special with
+    | Some(String s1), Some(String s2) -> makeString (s1 + s2)
+    | _ -> failwith "append error"
+    )
 ]
 Str.Slots <- Str'.Slots
 

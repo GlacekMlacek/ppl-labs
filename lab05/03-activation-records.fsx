@@ -20,7 +20,7 @@ and Special =
   | String of string
   | Code of (Objekt -> Objekt)
 
-#load "objekt-visualizer.fs"
+// #load "objekt-visualizer.fs"
 
 // ----------------------------------------------------------------------------
 // Helper functions for constructing objects
@@ -43,10 +43,12 @@ let printString (obj : Objekt) : unit =
 // ----------------------------------------------------------------------------
 
 let getParents (obj : Objekt) : Objekt list =
-  failwith "copy from step 1"
+  List.choose (fun s -> if s.Name.EndsWith("*") then Some s.Value else None) obj.Slots
 
 let rec findSlots (name : string) (obj : Objekt) : Slot list =
-  failwith "copy from step 1"
+  match List.tryFind (fun s -> s.Name = name) obj.Slots with
+  | Some s -> [s]
+  | _ -> List.collect (fun o -> findSlots name o) (getParents obj)
 
 let send (name : string) (args : list<string * Objekt>) (obj : Objekt) : Objekt =
   // TODO: Add support for method arguments via an activation record.
@@ -60,7 +62,13 @@ let send (name : string) (args : list<string * Objekt>) (obj : Objekt) : Objekt 
   //   
   // Second, call 'f activation' and return the result. The remaining cases 
   // (plain value, not found, ambiguous) are the same as in step 2.
-  failwith "not implemented"
+  match findSlots name obj with
+  | [s]  -> 
+      match s.Value.Special with // f obj
+      | Some(Code f) -> f (makeObject (List.append ["target*", obj] args))
+      | _ -> s.Value
+  | [] -> failwith "missing slot"
+  | _ -> failwith "multiple slots"
 
 // ----------------------------------------------------------------------------
 // Primitive string objects with a prototype carrying string methods
@@ -79,7 +87,12 @@ let rec stringPrototype : Objekt = makeObject [
     // NOTE: You can call 'ObjektVis.print' to visualize the activation record.
     // This way, you can see if you constructed it correctly!
     //
-    failwith "not implemented")
+    let receiver = send "target*" [] activation
+    let args = send "other" [] activation
+    match receiver.Special, args.Special with
+    | Some(String s1), Some(String s2) -> makeString (s1 + s2)
+    | _ -> failwith "append error"
+    )
 ]
 
 and makeString (s : string) : Objekt =

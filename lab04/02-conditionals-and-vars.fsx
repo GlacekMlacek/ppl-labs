@@ -27,6 +27,7 @@ type Command =
 type State = 
   { Program : list<int * Command>
     // TODO: Add variable context to the program state
+    Variables : Map<string, Value>
     CurrentLine : int }
 
 
@@ -35,10 +36,12 @@ type State =
 // ----------------------------------------------------------------------------
 
 let gotoNextLine (state:State) line : State option = 
-  failwith "implemented in step 1"
+  match List.tryFind (fun (n, _) -> n > line) state.Program with
+  | Some(n, _) -> Some { state with CurrentLine = n }
+  | None -> None
   
 let getCurrentCommand state : Command =
-  failwith "implemented in step 1"
+  snd (List.find (fun (n, _) -> n = state.CurrentLine) state.Program)
   
 // ----------------------------------------------------------------------------
 // Evaluator
@@ -46,10 +49,13 @@ let getCurrentCommand state : Command =
 
 let printValue (value:Value) =
   // TODO: Add support for printing NumberValue and BoolValue
-  failwith "implemented in step 1"
+  match value with
+  | StringValue s -> printf "%s" s
+  | NumberValue n -> printf "%d" n
+  | BoolValue b -> printf "%b" b
 
 
-let rec evalExpression (expr:Expression) : Value =
+let rec evalExpression (expr:Expression) state : Value =
   // TODO: Add support for 'Function' and 'Variable'. For now, handle just the two
   // functions we need, i.e. "-" (takes two numbers & returns a number) and "="
   // (takes two values and returns Boolean). Note that you can test if two
@@ -57,31 +63,53 @@ let rec evalExpression (expr:Expression) : Value =
   //
   // HINT: You will need to pass the program state to 'evalExpression' 
   // in order to be able to handle variables!
-  failwith "TODO: not implemented"
+  match expr with
+  | Const(v) -> v
+  | Function("=", [e1; e2]) -> BoolValue(evalExpression e1 state = evalExpression e2 state)
+  | Function("-", [e1; e2]) ->
+      match evalExpression e1 state, evalExpression e2 state with
+      | NumberValue x, NumberValue y -> NumberValue(x - y)
+      | _, _ -> failwith "wrong args for '-'"
+  | Function(_, _) -> failwith "function not implemented"
+  | Variable v ->
+      match Map.tryFind v state.Variables with
+      | Some v -> v
+      | None -> failwith "variable not found"
 
 
 let rec runCommand cmd state : State option =
   match cmd with
-  | Print(expr) -> failwith "implemented in step 1"
-  | Goto(target) -> failwith "implemented in step 1"
-
+  | Print(expr) ->
+      evalExpression expr state |> printValue
+      gotoNextLine state state.CurrentLine
+  | Goto(target) ->
+      Some { state with CurrentLine = target }
   // TODO: Implement assignment and conditional. 
   // Assignment should go to the next line after setting the variable like Print.
   // Conditional should evaluate the expression and, if 'true' call 'runCommand'
   // recursively to run the command. Otherwise, it goes to the next line.
-  | Assign _ -> failwith "not implemented"
-  | If _ -> failwith "not implemented"
+  // | If of Expression * Command
+  | Assign(s, e) -> gotoNextLine { state with Variables = Map.add s (evalExpression e state) state.Variables } state.CurrentLine
+  | If(e, c) ->
+      match evalExpression e state with
+      | BoolValue b -> if b then runCommand c state else gotoNextLine state state.CurrentLine
+      | _ -> failwith "if was expecting a bool"
 
 
+
+let rec runCurrentCommand state = 
+  runCommand (getCurrentCommand state) state
 let rec runProgram state : unit = 
-  failwith "implemented in step 1"
+  match runCurrentCommand state with
+  | Some nstate -> runProgram nstate
+  | None -> ()
 
 // ----------------------------------------------------------------------------
 // Test cases
 // ----------------------------------------------------------------------------
 
 // TODO: Add empty variables to the initial state!
-let makeProgram prog = { Program = prog; CurrentLine = 10 } 
+let makeProgram prog = { Program = prog; Variables = Map.empty; CurrentLine = 10 } 
 
 let testVariables = 
   [ 10, Assign("S", Const(StringValue "HELLO WORLD\n")) 

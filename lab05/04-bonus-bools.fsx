@@ -19,7 +19,7 @@ and Special =
   | String of string
   | Code of (Objekt -> Objekt)
 
-#load "objekt-visualizer.fs"
+// #load "objekt-visualizer.fs"
 
 // ----------------------------------------------------------------------------
 // Helper functions for constructing objects
@@ -44,13 +44,21 @@ let printValue (obj : Objekt) : unit =
 // ----------------------------------------------------------------------------
 
 let getParents (obj : Objekt) : Objekt list =
-  failwith "copy from step 1"
+  List.choose (fun s -> if s.Name.EndsWith("*") then Some s.Value else None) obj.Slots
 
 let rec findSlots (name : string) (obj : Objekt) : Slot list =
-  failwith "copy from step 1"
+  match List.tryFind (fun s -> s.Name = name) obj.Slots with
+  | Some s -> [s]
+  | _ -> List.collect (fun o -> findSlots name o) (getParents obj)
 
 let send (name : string) (args : list<string * Objekt>) (obj : Objekt) : Objekt =
-  failwith "copy from step 3"
+  match findSlots name obj with
+  | [s]  -> 
+      match s.Value.Special with // f obj
+      | Some(Code f) -> f (makeObject (List.append ["target*", obj] args))
+      | _ -> s.Value
+  | [] -> failwith "missing slot"
+  | _ -> failwith "multiple slots"
 
 // ----------------------------------------------------------------------------
 // Booleans and blocks as objects
@@ -66,7 +74,10 @@ let makeBool (b : bool) : Objekt =
       // TODO: Implement boolean conditional as a message send.
       // Retrieve the 'then' and 'else' arguments from 'activation' using 'send'.
       // Pick the branch corresponding to 'b', then invoke it by sending 'do'.
-      failwith "not implemented")
+      let thenArg = send "then" [] activation
+      let elseArg = send "else" [] activation
+      send "do" [] (if b then thenArg else elseArg)
+      )
   ]
 
 // 'makeBlock' wraps an F# function as an object with a 'do' method.
@@ -81,15 +92,23 @@ let makeBlock (f : unit -> Objekt) : Objekt =
 // ----------------------------------------------------------------------------
 
 let rec stringPrototype : Objekt = makeObject [
-  "append", makeMethod (fun o ->
-    // TODO: copy from step 3
-    failwith "copy from step 3")
-
+  "append", makeMethod (fun activation ->
+    let receiver = send "target*" [] activation
+    let args = send "other" [] activation
+    match receiver.Special, args.Special with
+    | Some(String s1), Some(String s2) -> makeString (s1 + s2)
+    | _ -> failwith "append error"
+    )
   "equals", makeMethod (fun o ->
     // TODO: Implement string equality.
     // Access receiver and argument the same way as in 'append'.
     // Return 'makeBool (s1 = s2)' rather than a string.
-    failwith "not implemented")
+    let receiver = send "target*" [] o
+    let args = send "other" [] o
+    match receiver.Special, args.Special with
+    | Some(String s1), Some(String s2) -> makeBool (s1 = s2)
+    | _ -> failwith "equals error"
+    )
 ]
 
 and makeString (s : string) : Objekt =
@@ -128,3 +147,4 @@ pA |> send "equals" ["other", makeString "silent"] |> send "if" [
     ])
 ]
 |> printValue
+

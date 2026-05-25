@@ -58,89 +58,155 @@ type State =
 // ----------------------------------------------------------------------------
 
 let gotoNextLine (state:State) line : State option =
-  failwith "implemented in step 1"
+  match List.tryFind (fun (n, _) -> n > line) state.Program with
+  | Some(n, _) -> Some { state with CurrentLine = n }
+  | None -> None
 
 let getCurrentCommand state : Command =
-  failwith "implemented in step 1"
+  snd (List.find (fun (n, _) -> n = state.CurrentLine) state.Program)
 
 // ----------------------------------------------------------------------------
 // Evaluator
 // ----------------------------------------------------------------------------
 
 let getNumberValue value =
-  failwith "implemented in step 3"
+  match value with
+  | NumberValue n -> n
+  | _ -> failwith "value is not number"
 
 let getVariableValue state (name:char) =
-  failwith "implemented in step 4"
+  match Map.tryFind (int name) state.Memory with
+  | Some n -> n
+  | None -> int ' '
 
 let setVariableValue state (name:char) value =
-  failwith "implemented in step 4"
+  { state with Memory = Map.add (int name) (getNumberValue value) state.Memory }
 
 let printValue (value:Value) =
-  failwith "implemented in step 1"
+  match value with
+  | StringValue s -> printf "%s" s
+  | NumberValue n -> printf "%d" n
+  | BoolValue b -> printf "%b" b
 
 let binaryRelOp f args = 
   match args with 
   | [NumberValue a; NumberValue b] -> BoolValue(f a b)
   | _ -> failwith "expected two numerical arguments"
 
+let binaryBoolOp f args = 
+  match args with 
+  | [BoolValue a; BoolValue b] -> BoolValue(f a b)
+  | _ -> failwith "expected two numerical arguments"
+
+let binaryNumOp f args = 
+  match args with 
+  | [NumberValue a; NumberValue b] -> NumberValue(f a b)
+  | _ -> failwith "expected two numerical arguments"
+
 let rec evalExpression state expr =
   // TODO: Extend evalExpression with the 'MIN(E1, E2)' function, which evaluates
   // both arguments and returns the smaller of the two as a NumberValue.
   // (All other cases are implemented in steps 1-5.)
-  failwith "implemented in steps 1-5"
+  match expr with
+  | Const v -> v
+  | Variable name ->
+      NumberValue (getVariableValue state name)
+  | Function(op, args) ->
+      let eargs = List.map (fun e -> evalExpression state e) args
+      match op with
+      | "RND" -> NumberValue (state.Random.Next(0, getNumberValue (List.head eargs)))
+      | "MIN" -> NumberValue (List.min (List.map (fun e -> getNumberValue e) eargs))
+      | "=" -> binaryRelOp (=) eargs
+      | ">" -> binaryRelOp (>) eargs
+      | "<" -> binaryRelOp (<) eargs
+      | "-" -> binaryNumOp (-) eargs
+      | "+" -> binaryNumOp (+) eargs
+      | "*" -> binaryNumOp (*) eargs
+      | "||" -> binaryBoolOp (||) eargs
+      | _ -> failwith "unsupported func"
 
 let rec runCommand state cmd : State option =
   match cmd with
-  | Goto _ -> failwith "implemented in step 1"
-  | Assign _ -> failwith "implemented in step 4"
-  | If _ -> failwith "implemented in step 2"
-  | Poke _ -> failwith "implemented in step 4"
-  | Peek _ -> failwith "implemented in step 4"
-  | Update -> failwith "implemented in step 5"
-  | Clear -> failwith "implemented in step 5"
-  | For _ -> failwith "implemented in step 3"
-  | Next _ -> failwith "implemented in step 3"
-
-  | Print(exprs) ->
+  | Goto target ->
+      Some { state with CurrentLine = target }
+  | If(e, c) ->
+      match evalExpression state e with
+      | BoolValue b -> if b then runCommand state c else gotoNextLine state state.CurrentLine
+      | _ -> failwith "if was expecting a bool"
+  | Assign(name, expr) ->
+      gotoNextLine (setVariableValue state name (evalExpression state expr)) state.CurrentLine
+  | Poke(addr, expr) ->
+      gotoNextLine (setVariableValue state (char (getNumberValue (evalExpression state addr))) (evalExpression state expr)) state.CurrentLine
+  | Peek(name, addr) ->
+      runCommand state (Assign(name, Const (evalExpression state addr)))
+  | For(v, e1, e2) ->
+      match evalExpression state e1, evalExpression state e2 with
+      | NumberValue lo, NumberValue hi ->
+          let nstate = { state with LoopStack = List.append [(v, hi, state.CurrentLine)] state.LoopStack }
+          runCommand nstate (Assign(v, Const (NumberValue lo)))
+      | _ -> failwith "forloop init error"
+  | Next v ->
+      let vv = 1 + getVariableValue state v
+      let nstate = setVariableValue state v (NumberValue vv)
+      let _, limit, jmp = List.find (fun (name, _, _) -> name = v) state.LoopStack
+      if vv <= limit then gotoNextLine nstate jmp else gotoNextLine nstate nstate.CurrentLine
+  | Update ->
+      Console.CursorLeft <- 0
+      Console.CursorTop <- 0
+      for r in 0 .. 19 do
+          for c in 0 .. 59 do
+              printf "%c" (char (getVariableValue state (char (1024 + r * 60 + c))))
+          printf "\n"
+      gotoNextLine state state.CurrentLine
+  | Clear ->
+      let mutable nstate = state
+      for i in 1024 .. 1024 + 20 * 60 - 1 do
+            nstate <- setVariableValue nstate (char i) (NumberValue (int ' '))
+      gotoNextLine nstate nstate.CurrentLine
+  | Print exprs ->
       // TODO: Print now takes a list of expressions rather than a single one.
       // Iterate over 'exprs', evaluate each one and print its value using
       // 'printValue'. Then advance to the next line.
-      failwith "TODO: not implemented"
-
+      let _ = List.map (fun e -> printValue (evalExpression state e)) exprs
+      gotoNextLine state state.CurrentLine
   | Stop ->
       // TODO: STOP terminates the program immediately.
       // Recall that runCommand returns 'State option': return the value that
       // signals "no more lines to run" to make runProgram stop.
-      failwith "TODO: not implemented"
+      None
 
-  | Input(name) ->
+  | Input name ->
       // TODO: INPUT <V> reads a number from the user and stores it in variable 'name'.
       // Use Console.ReadLine() and Int32.TryParse to read an integer. If parsing
       // fails (user typed something that isn't a number), ask again - keep looping
       // until you get a valid number. Then store it and advance to the next line.
-      failwith "TODO: not implemented"
-
-  
+      match Int32.TryParse (Console.ReadLine()) with
+      | true, x -> runCommand state (Assign(name, Const(NumberValue x)))
+      | _ -> runCommand state (Input name)
   // NOTE: You can skip GoSub and Return now and run the first version of the game!
   // (Return to these later to run the nicer version of the game...)
-
-
-  | GoSub(target) ->
+  | GoSub target ->
       // TODO: GOSUB <N> calls a subroutine starting at line <N>.
       // Before jumping, save the current line on the Stack so that RETURN can
       // come back here. Then jump to 'target' (hint: delegate to Goto).
-      failwith "TODO: not implemented"
+      runCommand { state with CallStack = List.append state.CallStack [state.CurrentLine] } (Goto target)
 
   | Return ->
       // TODO: RETURN comes back from a subroutine called by GOSUB.
       // Pop the top of the Stack to get the line the GOSUB was on, then use
       // gotoNextLine to continue from the line *after* that GOSUB.
       // If the Stack is empty, there is no matching GOSUB - fail with an error.
-      failwith "TODO: not implemented"
+      if state.CallStack.IsEmpty then failwith "empty callstack"
+      let jmp = List.rev state.CallStack |> List.head
+      runCommand { state with CallStack = List.rev state.CallStack |> List.tail |> List.rev } (Goto jmp)
+
+let rec runCurrentCommand state = 
+  runCommand state (getCurrentCommand state)
 
 let rec runProgram state : unit =
-  failwith "implemented in step 1"
+  match runCurrentCommand state with
+  | Some nstate -> runProgram nstate
+  | None -> ()
 
 // ----------------------------------------------------------------------------
 // Test case - NIM game with GOSUB

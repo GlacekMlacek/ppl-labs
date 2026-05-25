@@ -43,26 +43,35 @@ type State =
 // ----------------------------------------------------------------------------
 
 let gotoNextLine (state:State) line : State option =
-  failwith "implemented in step 1"
+  match List.tryFind (fun (n, _) -> n > line) state.Program with
+  | Some(n, _) -> Some { state with CurrentLine = n }
+  | None -> None
 
 let getCurrentCommand state : Command =
-  failwith "implemented in step 1"
+  snd (List.find (fun (n, _) -> n = state.CurrentLine) state.Program)
 
 // ----------------------------------------------------------------------------
 // Evaluator
 // ----------------------------------------------------------------------------
 
 let getNumberValue value = 
-  failwith "implemented in step 3"
+  match value with
+  | NumberValue n -> n
+  | _ -> failwith "value is not number"
 
 let getVariableValue state (name:char) = 
-  failwith "implemented in step 4"
+  match Map.tryFind (int name) state.Memory with
+  | Some n -> n
+  | None -> int ' '
 
 let setVariableValue state (name:char) value = 
-  failwith "implemented in step 4"
+  { state with Memory = Map.add (int name) (getNumberValue value) state.Memory }
 
 let printValue (value:Value) = 
-  failwith "implemented in step 1"
+  match value with
+  | StringValue s -> printf "%s" s
+  | NumberValue n -> printf "%d" n
+  | BoolValue b -> printf "%b" b
 
 // NOTE: Helper function that makes it easier to implement '>' and '<' operators
 // (takes a function 'int -> int -> bool' and "lifts" it into 'Value -> Value -> Value')
@@ -72,40 +81,99 @@ let binaryRelOp f args =
   | [NumberValue a; NumberValue b] -> BoolValue(f a b)
   | _ -> failwith "expected two numerical arguments"
 
+let binaryBoolOp f args = 
+  match args with 
+  | [BoolValue a; BoolValue b] -> BoolValue(f a b)
+  | _ -> failwith "expected two numerical arguments"
+
+let binaryNumOp f args = 
+  match args with 
+  | [NumberValue a; NumberValue b] -> NumberValue(f a b)
+  | _ -> failwith "expected two numerical arguments"
+
 let rec evalExpression state expr =
   // TODO: Add support for 'RND(N)' which returns a random number in range 0..N-1
   // and for binary operators ||, <, > (and the ones you have already, i.e., - and =).
   // To add < and >, you can use the 'binaryRelOp' helper above. You can similarly
   // add helpers for numerical operators and binary Boolean operators to make
   // your code a bit nicer. 
-  failwith "implemented in steps 1 and 3"
+  match expr with
+  | Const v -> v
+  | Variable name ->
+      NumberValue (getVariableValue state name)
+  | Function(op, args) ->
+      let eargs = List.map (fun e -> evalExpression state e) args
+      match op with
+      | "RND" -> NumberValue (state.Random.Next(0, getNumberValue (List.head eargs)))
+      | "=" -> binaryRelOp (=) eargs
+      | ">" -> binaryRelOp (>) eargs
+      | "<" -> binaryRelOp (<) eargs
+      | "-" -> binaryNumOp (-) eargs
+      | "+" -> binaryNumOp (+) eargs
+      | "*" -> binaryNumOp (*) eargs
+      | "||" -> binaryBoolOp (||) eargs
+      | _ -> failwith "unsupported func"
 
 
 let rec runCommand state cmd : State option =
   match cmd with
-  | Goto _ -> failwith "implemented in step 1"
-  | Assign _ -> failwith "implemented in step 4"
-  | If _ -> failwith "implemented in step 2"
-  | Poke _ -> failwith "implemented in step 4"
-  | Peek _ -> failwith "implemented in step 4"
-  | For _ -> failwith "implemented in step 3"
-  | Next _ -> failwith "implemented in step 3"
-  | Print _ -> failwith "implemented in step 1"
+  | Print(expr, b) ->
+      evalExpression state expr |> printValue
+      if b then printf "\n"
+      gotoNextLine state state.CurrentLine
+  | Goto target ->
+      Some { state with CurrentLine = target }
+  | If(e, c) ->
+      match evalExpression state e with
+      | BoolValue b -> if b then runCommand state c else gotoNextLine state state.CurrentLine
+      | _ -> failwith "if was expecting a bool"
+  | Assign(name, expr) ->
+      gotoNextLine (setVariableValue state name (evalExpression state expr)) state.CurrentLine
+  | Poke(addr, expr) ->
+      gotoNextLine (setVariableValue state (char (getNumberValue (evalExpression state addr))) (evalExpression state expr)) state.CurrentLine
+  | Peek(name, addr) ->
+      runCommand state (Assign(name, Const (evalExpression state addr)))
+  
+  | For(v, e1, e2) ->
+      match evalExpression state e1, evalExpression state e2 with
+      | NumberValue lo, NumberValue hi ->
+          let nstate = { state with LoopStack = List.append [(v, hi, state.CurrentLine)] state.LoopStack }
+          runCommand nstate (Assign(v, Const (NumberValue lo)))
+      | _ -> failwith "forloop init error"
+  | Next v ->
+      let vv = 1 + getVariableValue state v
+      let nstate = setVariableValue state v (NumberValue vv)
+      let _, limit, jmp = List.find (fun (name, _, _) -> name = v) state.LoopStack
+      if vv <= limit then gotoNextLine nstate jmp else gotoNextLine nstate nstate.CurrentLine
 
   | Update ->
       // TODO: Render the screen region of Memory to the console.
       // For each of the 20 rows, set Console.CursorTop and Console.CursorLeft,
       // then print all 60 characters in that row as a single string
       // (look up each address 1024 + row*60 + col; use ' ' if not found).
-      failwith "TODO: not implemented"
+      Console.CursorLeft <- 0
+      Console.CursorTop <- 0
+      for r in 0 .. 19 do
+          for c in 0 .. 59 do
+              printf "%c" (char (getVariableValue state (char (1024 + r * 60 + c))))
+          printf "\n"
+      gotoNextLine state state.CurrentLine
 
   | Clear ->
       // TODO: Write int ' ' into every screen address (1024..1024+20*60-1)
       // in state.Memory, leaving all other addresses untouched, then advance.
-      failwith "TODO: not implemented"
+      let mutable nstate = state
+      for i in 1024 .. 1024 + 20 * 60 - 1 do
+            nstate <- setVariableValue nstate (char i) (NumberValue (int ' '))
+      gotoNextLine nstate nstate.CurrentLine
+
+let rec runCurrentCommand state = 
+  runCommand state (getCurrentCommand state)
 
 let rec runProgram state : unit =
-  failwith "implemented in step 1"
+  match runCurrentCommand state with
+  | Some nstate -> runProgram nstate
+  | None -> ()
 
 // ----------------------------------------------------------------------------
 // Test cases

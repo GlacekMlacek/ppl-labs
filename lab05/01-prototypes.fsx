@@ -41,20 +41,25 @@ let getParents (obj : Objekt) : Objekt list =
   // TODO: Return the values of all parent slots.
   // Parent slots are identified by their name ending with '*'.
   // Use List.choose to filter and unwrap in one step or List.filter & List.map
-  failwith "todo"
+   List.choose (fun s -> if s.Name.EndsWith("*") then Some s.Value else None) obj.Slots
 
 let rec findSlots (name : string) (obj : Objekt) : Slot list =
   // TODO: Search for a slot by name. If the slot is not found directly
   // in the object, follow the prototype chain using getParents.
   // Returns a list because the same name might be reachable via multiple
   // parent paths; the caller treats multiple results as an error.
-  failwith "todo"
+  match List.tryFind (fun s -> s.Name = name) obj.Slots with
+  | Some s -> [s]
+  | _ -> List.collect (fun o -> findSlots name o) (getParents obj)
 
 let send (name : string) (obj : Objekt) : Objekt =
   // TODO: Look up a slot by name and return its value.
   // Exactly one result is expected: zero means the slot is missing,
   // more than one means the name is ambiguous across parent paths.
-  failwith "todo"
+  match findSlots name obj with
+  | [s] -> s.Value
+  | [] -> failwith "missing slot"
+  | _ -> failwith "multiple slots"
 
 // ----------------------------------------------------------------------------
 // Primitive string objects
@@ -133,6 +138,6 @@ mog |> send "sound"
 mog |> send "book"
 
 // Error - ambiguous slots (sound is found via both animal* and aristocrat*)
-larry |> send "sound"
+// larry |> send "sound"
 // Error - no slot found (larry has no fictional* parent)
-larry |> send "book"
+// larry |> send "book"

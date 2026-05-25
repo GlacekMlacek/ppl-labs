@@ -1,12 +1,10 @@
 # NPRG084: Principles of Programming Languages - Labs
 
-Here you will find materials for the NPRG084 labs. Preliminary plan is:
+Completed:
 
-**Room S10, Fridays 10:40-13:40**
-
-- **7. Feb** - Welcome & Lambda calculus
-- **20. March** - ML-like language interpreter
-- **27. March** - Data types and type checking
-- **17. April** - Imperative BASIC interpreter
-- **24. April** - Object-oriented languages (TBC)
-- **22. May** - Logic programming & unification
+[X] - Welcome & Lambda calculus
+[X] - ML-like language interpreter
+[X] - Data types and type checking
+[X] - Imperative BASIC interpreter
+[X] - Object-oriented languages (One of the bonuses is not done)
+[ ] - Logic programming & unification
